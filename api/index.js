@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const serverless = require("serverless-http");
 const { connectDB } = require("./lib/db");
 
 const authRoutes = require("./routes/auth");
@@ -14,7 +13,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ Cache DB connection (important for Vercel serverless)
+// ✅ connect once (cache)
 let isDbConnected = false;
 
 app.use(async (req, res, next) => {
@@ -22,35 +21,22 @@ app.use(async (req, res, next) => {
     if (!isDbConnected) {
       await connectDB(process.env.MONGODB_URI);
       isDbConnected = true;
+      console.log("✅ MongoDB connected");
     }
     next();
   } catch (err) {
-    console.error("DB connect error:", err);
+    console.error("❌ DB connect error:", err);
     return res.status(500).json({ error: "Database connection failed" });
   }
 });
 
+// ✅ test route
+app.get("/", (req, res) => res.json({ ok: true, message: "API running" }));
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 app.use("/auth", authRoutes);
 app.use("/events", eventRoutes);
 app.use("/me", meRoutes);
 
-module.exports = serverless(app);
-app.use(async (req, res, next) => {
-  try {
-    await connectDB(process.env.MONGODB_URI);
-    next();
-  } catch (err) {
-    console.error("DB connect error:", err);
-    return res.status(500).json({ error: "Database connection failed" });
-  }
-});
-
-app.get("/health", (req, res) => res.json({ ok: true }));
-
-app.use("/auth", authRoutes);
-app.use("/events", eventRoutes);
-app.use("/me", meRoutes);
-
-module.exports = serverless(app);
+// ✅ IMPORTANT: Vercel Node Function needs (req,res) handler
+module.exports = app;
